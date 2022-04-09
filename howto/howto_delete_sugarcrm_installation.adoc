@@ -1,0 +1,21 @@
+
+== How to delete Sugarcrm installation
+
+_for example installation `ouatint03` deployed on Kubernetes cluster `prod1`_
+
+The brutal method would simply be to delete the whole Kubernetes namespace related to the installation, since usually, each Sugarcrm installation is deployed in its own namespace.
+
+[source,bash]
+----
+# Really make sure the namespace does not contain other unrelated resources
+kubectl delete namespace ouatint03
+----
+
+Otherwise, this basically means:
+
+1. checking the relevant installation script `deploy/prod1/ouatint03.sh`
+1. `helm uninstall ouatint03 --namespace ouatint03`
+1. `kubectl delete -f ...` for all the YAML files where there is a `kubectl apply -f ...`
+1. volumes bound to remaining PersistentVolumeClaims may remain and may need to be deleted manually
+    1. example: `kubectl delete -n ouatint02 pvc/data-ouatint02-plugins-mysql-0 pvc/data-ouatint02-plugins-elasticsearch-master-0 pvc/ouatint02-plugins-sugarcrm`
+1. search for other remaining ressources depending on some label that may have been set, and delete

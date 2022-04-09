@@ -1,0 +1,55 @@
+= WebUI URLs
+
+== APPLICATION WEBUI URLS
+
+=== cluster "prod1"
+
+SugarCRM:
+
+* [line-through]#https://support.uatint.prod1.platform.inetprocess.com/[ouatint2 support portal]#
+* https://seltech.uatint.prod1.platform.inetprocess.com/[ouatint2 seltech]
+* https://inetglobal.uatint.prod1.platform.inetprocess.com/[ouatint2 inetglobal]
+* [line-through]#https://plugins.uatint.prod1.platform.inetprocess.com/[ouatint2 plugins]#
+
+PhpMyAdmin:
+
+* https://phpmyadmin.prod1.platform.inetprocess.com[phpmyadmin]
+
+Maildev:
+
+* https://maildev-alcea.prod1.platform.inetprocess.com[maildev Alcea]
+* https://maildev-aspire.prod1.platform.inetprocess.com[maildev Aspire]
+* https://maildev-cinov.prod1.platform.inetprocess.com[maildev Cinov]
+* https://maildev-ede.prod1.platform.inetprocess.com[maildev EDE]
+* https://maildev-exaprint.prod1.platform.inetprocess.com[maildev Exaprint]
+* https://maildev-inetprocess.prod1.platform.inetprocess.com[maildev Inetprocess]
+* https://maildev-trial.prod1.platform.inetprocess.com[maildev Trial]
+* https://maildev-uia.prod1.platform.inetprocess.com[maildev UIA]
+* https://maildev-usa.prod1.platform.inetprocess.com[maildev USA]
+* [line-through]#https://maildev-valtus.prod1.platform.inetprocess.com[maildev Valtus]#
+
+Example apps:
+
+* https://2048.prod1.platform.inetprocess.com/[game 2048]
+* [line-through]#https://whoami.prod1.platform.inetprocess.com/[what is this container and where is it running ?]#
+
+
+=== cluster "prod2"
+
+
+
+== MANAGEMENT WEBUI URLS
+
+=== cluster "prod1"
+
+* https://prometheus-grafana.prod1.platform.inetprocess.com/[Grafana from Prometheus install]
+* https://longhorn.prod1.platform.inetprocess.com/[Longhorn dashboard]
+* https://traefik.prod1.platform.inetprocess.com/[Traefik dashboard]
+* https://prometheus.prod1.platform.inetprocess.com/[Prometheus webui]
+* https://k10.prod1.platform.inetprocess.com/[Kasten K10 webui]
+
+
+=== cluster "mgt1"
+
+* https://traefik.mgt1.platform.inetprocess.com/[Traefik dashboard]
+* https://rancher.mgt1.platform.inetprocess.com/[Rancher dashboard]

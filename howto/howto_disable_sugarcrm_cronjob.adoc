@@ -1,0 +1,10 @@
+= How to disable Sugarcrm cron job
+
+Either:
+
+* by redeploying changes:
+    1. change the value `cronJobs.enabled` to `false` in the `./deploy/CLUSTER/resources/NAME-helm_values.yaml` configuration file
+    1. redeploy changes by running `./deploy/CLUSTER/NAME.sh`
+* by disabling cronJob in Kubernetes
+    1. Edit Kubernetes cronJob related to SugarCRM installation
+    1. Set `spec.suspend: true` and save

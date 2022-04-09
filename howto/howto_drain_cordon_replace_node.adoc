@@ -1,0 +1,22 @@
+= How to drain / cordon / replace Kubernetes nodes
+
+To replace a node with another VM size, create another node pool in Scaleway console if there is no already with this VM type. Once the pool is created and at least a node is ready, drain and delete the unneeded nodes and pools. Kubernetes will reschedule running pods and resources to remaining nodes. Draining also includes cordoning, which prevents workloads to be scheduled on the node.
+
+Note that data stored in `emptyDir` and `hostPath` volumes will not be migrated and be deleted with the node.
+
+[source,bash]
+----
+# check nodes readyness
+kubectl get nodes -o wide
+
+# drain (includes cordon) a node
+kubectl drain node scw-k8s-poc1-default-9bac97b28f2f40d79d1d82b6d --delete-emptydir-data --ignore-daemonsets
+
+# verify nothing is running anymore on the drained node (except daemonsets, ...)
+kubectl get pods -o wide -A
+
+# delete node
+kubectl delete node scw-k8s-poc1-default-9bac97b28f2f40d79d1d82b6d
+----
+
+Then delete node and/or pool in Scaleway web console

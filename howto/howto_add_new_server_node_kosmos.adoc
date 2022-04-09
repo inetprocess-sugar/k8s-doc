@@ -1,0 +1,36 @@
+
+= How to add new physical server nodes to Kosmos cluster
+
+NOTE: Scaleway Kosmos documentation tells to provision servers with Ubuntu 20.04 LTS
+
+1. make sure there exists a credential API key for servers to join Kubernetes pools at https://console.scaleway.com/project/credentials . For example credentials "add k8s nodes"
+1. create a new pool or get ID of an existing pool at https://console.scaleway.com/kapsule/clusters/fr-par/38d9ef62-d708-447d-bc57-8ace867a6418/pools (The pool ID can be seen by clicking on the three vertical dots right to the pool name, then "more information"). For example pool "scw-em" 611c44a7-f708-4478-96df-cc0e30a1a4af used to group Scaleway Elastic Metal servers
+1. provision or reinstall a new server with Ubuntu 20.04 LTS at https://console.scaleway.com/elastic-metal/servers
+1. connect with SSH on new server, `sudo su-`, then run the commands below. Server will auto-configure itself and join pool
+1. make sure to enable Kubernetes and Containerd services will be reenabled reboot time (commands below)
+1. it should take some minutes to fully complete and join Kubernetes cluster
+
+.commands on server to join pool
+[source,bash]
+----
+scw_secret_key=THE_SECRET_PART_OF_API_CREDENTIAL  # API key "add k8s nodes"
+pool_id=TARGET_POOL_ID
+
+wget https://scwcontainermulticloud.s3.fr-par.scw.cloud/multicloud-init.sh && chmod +x multicloud-init.sh
+
+./multicloud-init.sh -p $pool_id -r fr-par -t $scw_secret_key
+----
+
+.commands on server to re-enable Kubernetes at boot
+[source,bash]
+----
+systemctl enable --now kubelet containerd
+----
+
+.watch it initialize
+[source,bash]
+----
+journalctl -u containerd
+
+journalctl -u kubelet -f
+----

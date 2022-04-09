@@ -1,0 +1,13 @@
+= How to initialize DNS for new Scaleway Kubernetes cluster
+
+WARNING: this section is TODO
+
+----
+echo
+echo "AT THIS POINT,
+MAKE SURE DNS TO NODES OR LB IS SETUP CORRECTLY AND PROPAGATED
+FOR CERT-MANAGER TO ISSUE LETSENCRYPT CERTIFICATES"
+echo hit ENTER to continue
+read nothing
+echo
+----

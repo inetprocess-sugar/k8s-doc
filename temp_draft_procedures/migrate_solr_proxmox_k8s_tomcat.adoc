@@ -1,0 +1,257 @@
+= How to migrate obsolete solr 4.6.1 from v1pmx32 to bitnami tomcat container
+
+Constraints:
+
+* Solr version 4.6.1 which is not available anywhere anymore as a ready to use container. It seems it never was and may predate container general usage
+    ** -> we will instead run a Tomcat 7 generic container to which we will copy Solr webapp and data
+* Tomcat 7: not available anymore directly as Bitnami Helm chart, but Bitnami image still available, and compatible.
+
+Information about Bitnami Tomcat container:
+
+* persistent data (PVC) is mounted at `/bitnami/tomcat`. Everything else is ephemeral
+* Tomcat installation, configurations, logs, ... are ephemeral.
+    ** so we will put needed Jar, properties and context.xml files in Solr webapp directory, which is is classpath
+
+WARNING: This version of Solr with Log4j is vulnerable to critical security issue Log4shell !
+
+
+== MIGRATION PROCEDURE
+
+_all shell commands related to this process are in annex, ready to be executed_
+
+1. get `/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/webapps/solr.war` and copy it to Tomcat container in Kubernetes in `/bitnami/tomcat/data`
+    ** -> Tomcat should deploy (decompress) it automatically in `/bitnami/tomcat/data/solr`
+1. get `/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/solr_download` and copy it to Tomcat container in Kubernetes in `/bitnami/tomcat/solr_download`
+1. then copy Log4j Jar files in some persistent location within CLASSPATH
+    ** `cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/lib/ext/*.jar /bitnami/tomcat/data/solr/WEB-INF/lib/`
+1. not sure if this is needed, but copy `log4j.properties` in some persistent location where it will be loaded. Not sure where, so i put it in `WEB-INF/`
+    ** `cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/resources/log4j.properties /bitnami/tomcat/data/solr/WEB-INF/`
+1. then copy the `context.xml` file below in some persistent place. On v1pmx32, it is located in Tomcat configuration directory, but in Kubernetes container, this location is ephemeral. So let's create it in `/bitnami/tomcat/data/solr/META-INF/context.xml`, specifying the location of Solr data and collections
+1. get `/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/solr` (this is the data and collections) and copy it to Tomcat container in Kubernetes in persistent location `/bitnami/tomcat/solr_data`
+
+.shell command to create context.xml without text editor
+[source,bash]
+----
+cat >/bitnami/tomcat/data/solr/META-INF/context.xml <<'EOF'
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!-- The contents of this file will be loaded for each web application -->
+<Context>
+
+    <!-- Default set of monitored resources -->
+    <WatchedResource>WEB-INF/web.xml</WatchedResource>
+
+    <!-- Uncomment this to disable session persistence across Tomcat restarts -->
+    <!--
+    <Manager pathname="" />
+    -->
+
+    <!-- Uncomment this to enable Comet connection tacking (provides events
+         on session expiration as well as webapp lifecycle) -->
+    <!--
+    <Valve className="org.apache.catalina.valves.CometConnectionManagerValve" />
+    -->
+
+<Environment name="solr/home" type="java.lang.String" value="/bitnami/tomcat/solr_data" override="true"></Environment>
+</Context>
+EOF
+----
+
+Sources:
+
+* starting failure because logging jar missing: https://cwiki.apache.org/confluence/display/solr/SolrLogging#SolrLogging-UsingtheexampleloggingsetupincontainersotherthanJetty[Solr's Logging Mechanism]
+
+
+== TESTING AND COMPARING INSTALLATION AND DATA
+
+[source,bash]
+----
+tail -f /opt/bitnami/tomcat/logs/*.log
+----
+
+[source,bash]
+----
+kubectl port-forward --namespace owwwuia02 svc/owwwuia02-solr 8081:80
+----
+
+[source,bash]
+----
+ssh owwwuia02a.inetprocess.fr -L 8080:127.0.0.1:8080
+----
+
+Point web browser to
+
+* http://127.0.0.1:8081/solr/[Kubernetes Solr installation]
+* http://127.0.0.1:8080/solr/[Proxmox Solr installation]
+
+
+== ANNEX
+
+=== All shell commands to migrate in one go
+
+WARNING: some commands are supposed to be run on workstation, some within container. Use your brain !
+
+.production owwwuia02-solr refresh data, less than 5m
+[source,bash]
+----
+kubectx prod1
+kubens owwwuia02
+pod=`kubectl get pod  |grep solr |ruby -ane 'puts $F[0]'`
+
+# rm -rf produiatmp 2>/dev/null
+mkdir -p produiatmp
+
+rm -rf /bitnami/tomcat/solr_data
+
+rsync -a --delete root@oovz32.inetprocess.fr:/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/solr/ produiatmp/solr_data/
+
+time kubectl cp produiatmp/solr_data ${pod}:/bitnami/tomcat/solr_data
+
+kill 1  # restart container
+----
+
+.production owwwuia02-solr complete procedure
+[source,bash]
+----
+kubectx prod1
+kubens owwwuia02
+pod=`kubectl get pod  |grep solr |ruby -ane 'puts $F[0]'`
+
+mkdir -p produiatmp
+
+rsync -a --progress root@oovz32.inetprocess.fr:/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/webapps/solr.war produiatmp/
+
+time kubectl cp produiatmp/solr.war ${pod}:/bitnami/tomcat/data/solr.war
+
+rsync -a  root@oovz32.inetprocess.fr:/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/solr_download produiatmp/
+
+time kubectl cp produiatmp/solr_download ${pod}:/bitnami/tomcat/solr_download
+
+cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/lib/ext/*.jar /bitnami/tomcat/data/solr/WEB-INF/lib/
+
+cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/resources/log4j.properties /bitnami/tomcat/data/solr/WEB-INF/
+
+cat >/bitnami/tomcat/data/solr/META-INF/context.xml <<'EOF'
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!-- The contents of this file will be loaded for each web application -->
+<Context>
+
+    <!-- Default set of monitored resources -->
+    <WatchedResource>WEB-INF/web.xml</WatchedResource>
+
+    <!-- Uncomment this to disable session persistence across Tomcat restarts -->
+    <!--
+    <Manager pathname="" />
+    -->
+
+    <!-- Uncomment this to enable Comet connection tacking (provides events
+         on session expiration as well as webapp lifecycle) -->
+    <!--
+    <Valve className="org.apache.catalina.valves.CometConnectionManagerValve" />
+    -->
+
+<Environment name="solr/home" type="java.lang.String" value="/bitnami/tomcat/solr_data" override="true"></Environment>
+</Context>
+EOF
+
+rsync -a  root@oovz32.inetprocess.fr:/fast-tank/subvol-11412-disk-1/opt/solr_tomcat/solr/ produiatmp/solr_data/
+
+time kubectl cp produiatmp/solr_data ${pod}:/bitnami/tomcat/solr_data
+----
+
+
+.UAT ouatwwwuia02-solr complete procedure
+[source,bash]
+----
+kubectx prod2
+kubens ouatwwwuia02
+pod=`kubectl get pod  |grep solr |ruby -ane 'puts $F[0]'`
+
+mkdir -p uatuiatmp
+
+rsync -a --progress --rsh="ssh -p 22222" root@oovz15.inetprocess.fr:/fast-tank/subvol-21414-disk-1/opt/solr_tomcat/webapps/solr.war uatuiatmp/
+
+time kubectl cp uatuiatmp/solr.war ${pod}:/bitnami/tomcat/data/solr.war
+
+rsync -a  --rsh="ssh -p 22222" root@oovz15.inetprocess.fr:/fast-tank/subvol-21414-disk-1/opt/solr_tomcat/solr_download uatuiatmp/
+
+time kubectl cp uatuiatmp/solr_download ${pod}:/bitnami/tomcat/solr_download
+
+cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/lib/ext/*.jar /bitnami/tomcat/data/solr/WEB-INF/lib/
+
+cp -i /bitnami/tomcat/solr_download/solr-4.6.1/example/resources/log4j.properties /bitnami/tomcat/data/solr/WEB-INF/
+
+cat >/bitnami/tomcat/data/solr/META-INF/context.xml <<'EOF'
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!-- The contents of this file will be loaded for each web application -->
+<Context>
+
+    <!-- Default set of monitored resources -->
+    <WatchedResource>WEB-INF/web.xml</WatchedResource>
+
+    <!-- Uncomment this to disable session persistence across Tomcat restarts -->
+    <!--
+    <Manager pathname="" />
+    -->
+
+    <!-- Uncomment this to enable Comet connection tacking (provides events
+         on session expiration as well as webapp lifecycle) -->
+    <!--
+    <Valve className="org.apache.catalina.valves.CometConnectionManagerValve" />
+    -->
+
+<Environment name="solr/home" type="java.lang.String" value="/bitnami/tomcat/solr_data" override="true"></Environment>
+</Context>
+EOF
+
+rsync -a  --rsh="ssh -p 22222" root@oovz15.inetprocess.fr:/fast-tank/subvol-21414-disk-1/opt/solr_tomcat/solr/ uatuiatmp/solr_data/
+
+time kubectl cp uatuiatmp/solr_data ${pod}:/bitnami/tomcat/solr_data
+----

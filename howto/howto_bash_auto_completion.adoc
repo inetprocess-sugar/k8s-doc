@@ -1,0 +1,15 @@
+= How to set up Bash `kubectl` auto-completion
+
+.Kubernetes Bash auto completion
+[source,bash]
+----
+dnf install -y bash-completion
+
+# if not already there
+cat >/etc/profile.d/custom.sh <<'EOF'
+
+source <(kubectl completion bash)
+alias k=kubectl
+complete -F __start_kubectl k
+EOF
+----

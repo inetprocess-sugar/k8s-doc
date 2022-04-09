@@ -1,0 +1,18 @@
+= How to manage multiple Kubernetes clusters / change contexts
+
+1. get Kube config files, for example at `~/.kube/mgt1.yaml` and `~/.kube/prod1.yaml`
+1. append files locations to `$KUBECONFIG`
+    * for example `export KUBECONFIG=~/.kube/mgt1.yaml:~/.kube/prod1.yaml:~/.kube/dev01.yaml`
+    * or in shell profile, for example `echo 'export KUBECONFIG=~/.kube/mgt1.yaml:~/.kube/prod1.yaml >/etc/profile.d/custom.sh`
+1. see available contexts and current context:
+    * `kubectl config view`
+    * `kubectl config current-context`
+1. change context as needed
+    * kubectl config use-context admin@prod1
+
+Sources:
+
+* https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/[Configure Access to Multiple Clusters]
+* https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/[Organizing Cluster Access Using kubeconfig Files]
+
+There also exists some `kubectl` plugins to ease context switches, for example https://github.com/ahmetb/kubectx[`kubectx` and `kubens`]. In this case, all clusters configurations must already be concatenated to one single file, for example `~/.kube/config`

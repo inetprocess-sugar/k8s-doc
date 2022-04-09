@@ -1,0 +1,15 @@
+= How to change pod limit on each node
+
+Each Kubernetes node runs a `kubelet` process, which has a maximum pod limit, usually 110.
+
+To raise this limit:
+
+1. edit `/var/lib/kubelet/kubelet.conf`
+    ** set `maxPods:` to the chosen value
+1. restart `kubelet`
+    ** `systemctl restart kubelet`
+    ** `journalctl -f -u kubelet`
+
+NOTE: Pods will continue to run and work even if `kubelet` fails or is stopped. Once `kubelet` is restarted, restart of pods may occur, as it takes back pods under its management.
+
+WARNING: do not stop `kubelet` for more than 5 minutes, or Kubernetes will consider the node dead and start relocating pods.

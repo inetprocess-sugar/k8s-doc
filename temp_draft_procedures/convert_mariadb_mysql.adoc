@@ -1,0 +1,142 @@
+= Draft doc to get files or convert mysql database from dead container to mysqldump
+
+NOTE: use name `oovzXX.inetprocess.fr` and SSH port 22222 to bypass VPN and avoid bandwidth issues
+
+
+
+== TRANSFERT FILES
+
+Once SugarCRM pod has started in `diagnosticMode.enabled: true`
+
+connect the pod
+
+```bash
+kubens ouatcrmuia03
+
+k exec -ti deploy/ouatcrmuia03-sugarcrm -c sugarcrm -- bash
+```
+
+On container, create a SSH key:
+
+```bash
+ssh-keygen
+cat /home/1001/.ssh/id_rsa.pub
+```
+
+sur la machine cible (exemple oovz15, ajouter cette clef avec un commentaire TEMPORARY dans le fichier `/root/.ssh/authorized_keys`)
+
+Pour le Proxmox15, qui est incapable d'éditer le fichier /root/.ssh/authorized_keys , il faut utiliser une des clefs déjà autorisées. So one would replace ~/.ssh/id_rsa on the Kubernetes pod to put an accepted private key
+
+```bash
+vi ~/.ssh/id_rsa
+chmod 0600 ~/.ssh/id_rsa
+rm -f ~/.ssh/id_rsa.pub
+```
+
+Test SSH connection
+
+```bash
+ssh -p 22222 root@oovz15.inetprocess.fr
+```
+
+Transfert files
+
+```bash
+time rsync -a --delete --rsh="ssh -p 22222" --exclude home/backup_sql --exclude '*.sql' --exclude '*.zip' --exclude var/spool/rsyslog root@oovz15.inetprocess.fr:/fast-tank/subvol-21413-disk-1/home/sugarcrm/app/www/ /app/www/
+
+time rsync -a --progress --delete --rsh="ssh -p 22222" root@oovz15.inetprocess.fr:/fast-tank/subvol-21413-disk-1/home/sugarcrm/app/ /app/
+```
+
+Open a new terminal on pod and watch the disk fill
+
+```bash
+k exec -ti deploy/ouatcrmuia03-sugarcrm -c sugarcrm -- bash -c "watch -n 30 df -h"
+```
+
+
+
+== THEN MARIADB CONVERSION
+
+Create a MariaDB pod with a very big volume which will be used to transfer files, store mysqldumps, ... Run it as root in order to be able to install packages (setting the `containerSecurityContext:` right
+
+```bash
+kubens ouatcrmuia03
+k delete pod/afouche01; k apply -f prod2/resources/tmp_mariadb_convert.yaml
+```
+
+Connect to pod
+
+```bash
+k exec -ti pod/afouche01 -- bash
+```
+
+Install needed packages (this is why root login is needed)
+
+```bash
+apt update; apt install -y openssh-client rsync pv vim
+```
+
+then rsync MariaDB files from stopped container on oovz15 to /bitnami/mariadb/data/
+
+```
+time rsync -a --progress --delete --rsh="ssh -p 22222" root@oovz15.inetprocess.fr:/fast-tank/subvol-21413-disk-1/var/lib/mysql/ /bitnami/mariadb/data/
+```
+
+Then run MariaDB as done in its entrypoint at https://github.com/bitnami/bitnami-docker-mariadb/blob/master/10.2/debian-10/Dockerfile
+
+Create a user mysql to run MariaDB (name defined in `/opt/bitnami/scripts/mariadb-env.sh` `DB_DAEMON_USER` )
+
+```bash
+groupadd mysql; useradd -g mysql mysql;
+
+chown -R mysql:mysql /bitnami/mariadb/data /opt/bitnami/mariadb
+/opt/bitnami/scripts/mariadb/run.sh
+```
+
+Then in another terminal, connect to pod and prepare to dump database
+
+If you have an error such as `ERROR 1524 (HY000): Plugin 'unix_socket' is not loaded`, then :
+
+Edit `/opt/bitnami/mariadb/conf/my.cnf`
+
+add in the `[mysqld]` section:
+
+```
+plugin-load-add = auth_socket.so
+```
+
+connect to pod
+
+```bash
+k exec -ti pod/afouche01 -- bash
+```
+
+check which database to backup
+
+```bash
+mysql_root_password='SECRET'
+
+mysql -uroot -p"${mysql_root_password}" -e "show databases;"
+
+database=uianet_dev
+
+mysql -uroot -p"${mysql_root_password}" -e "show tables;" $database
+
+/opt/bitnami/mariadb/bin/mysqldump -uroot -p"${mysql_root_password}" \
+    --opt --no-create-db --single-transaction --events --triggers --routines \
+    --default-character-set=utf8 \
+    --max_allowed_packet=512M $database \
+    | sed -E -e '/DEFINER/ s;(/\*![[:digit:]]+[[:space:]]*)?DEFINER[[:space:]]*=[[:space:]]*[^[:space:]]+\@[^[:space:]]+([[:space:]]*SQL[[:space:]]SECURITY[[:space:]]DEFINER[[:space:]]*)?([[:space:]]*\*/)?;;g' \
+    | pv \
+    | gzip >/bitnami/mariadb/migration.sql.gz
+
+mv /bitnami/mariadb/migration.sql.gz /bitnami/mariadb/migration-21414-$database.sql.gz
+```
+
+if needed get the file locally
+
+```bash
+k cp afouche01:/bitnami/mariadb/migration-21413.sql.gz ~/Downloads/migration-21413.sql.gz
+```
+
+Then `killall mysqld` and do it again from the `rsync --delete` with another Mariadb database on v1pmx15

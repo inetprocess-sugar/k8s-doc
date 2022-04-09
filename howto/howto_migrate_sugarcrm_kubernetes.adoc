@@ -1,0 +1,133 @@
+
+= How to migrate sugarcrm installation to Kubernetes
+
+== How to migrate sugarcrm installation to Kubernetes
+
+=== What composes a Kubernetes SugarCRM installation ?
+
+All the Kubernetes yaml definitions files for an Inetprocess installation of SugarCRM are grouped into an Helm package. This means you only need to provide some customization parameters, and a whole SugarCRM stack along with Apache, PHP-FPM, MySQL, Elasticsearch will be instanciated into the chosen Kubernetes cluster. I provided commented example parameter files in `./deploy/cluster/resources/example-*` which you can copy in `./deploy/CLUSTER_NAME/resources/INSTALLATION_NAME-*`
+
+* the credentials needed, separately created in Kubernetes "secret" resources, and encrypted so that the file can be versionned in Git
+    ** `./deploy/example_cluster/resources/example-secrets.yaml`.
+* the parameter file which will customize the Helm installation:
+    ** `./deploy/example_cluster/resources/example-helm_values.yaml`.
+
+Separately there is a wrapper Shell script which will run all needed command to instanciate the SugarCRM installation and reference all definition files, which you can copy in `./deploy/CLUSTER_NAME/INSTALLATION_NAME.sh`. Do not forget to give execution permissions.
+
+* `./deploy/example_cluster/example.sh`.
+
+This will the script to run to instanciate the SugarCRM installation.
+
+What will be instanciated are not a single Kubernetes pod with a single container running all services, but many pods running each service separately:
+
+* a Sugarcrm pod, running:
+    ** an Apache container
+    ** a PHP-FPM container
+* a MySQL pod running a standalone MySQL container "primary"
+* an Elasticsearch pod running a standalone Elasticsearch container "master"
+* CronJobs pods that will instanciate each minute and terminate
+
+
+:sectnums:
+=== Get information
+
+NOTE: provide resource information separately for each pod, whereas in Proxmox resources requests and limits are for both SugarCRM, MySQL, Elasticsearch, ...
+
+1. about how much resources (CPU cores/memory) are *needed/requested* to run this SugarCRM installation ?
+    ** for memory baseline needed, run the `pmem` shell function below
+    ** also check the MySQL `innodb_buffer_pool_size` configuration for another piece of information (`/etc/mysql/my.cnf`)
+    ** also check the Elasticsearch heap memory settings (`-Xmx` and `-Xms`) (`/etc/elasticsearch/jvm.options`)
+1. about how much resources (CPU cores/memory) are configured in Proxmox as *limits* to run this SugarCRM installation ?
+1. about how much disk space, again separately for SugarCRM and MySQL and Elasticsearch ?
+    ** where are SugarCRM files: `grep -r DocumentRoot /etc 2>/dev/null`
+    ** files on disk: `du -sh /home/sugarcrm/app/* | sort -h`
+    ** database size on disk `du -sh /var/lib/mysql`
+    ** real database size, see SQL query below
+    ** Elasticsearch files: `du -sh /var/lib/elasticsearch`
+1. Which version of PHP-FPM is required to run SugarCRM, 5.6, 7.1 or 7.3 ?
+1. Is MySQL engine MySQL or MariaDB, and which version ?
+    ** Mariadb 10.0 or 10.1 are similar to MySQL 5.6
+    ** Mariadb 10.2, 10.3 and 10.4 are similar MySQL 5.7
+1. Which version of Elasticsearch, 1.6 or 5.6 ?
+
+.get process memory usage sorted
+[source,bash]
+----
+function psmem {
+    ps aux |awk '{print $6/1024 " MB\t\t" $11}' | sort -n
+}
+
+psmem
+----
+
+.get real database size
+[source,sql]
+----
+SELECT table_schema "database",
+        ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) "DB Size in MB"
+FROM information_schema.tables
+GROUP BY table_schema;
+----
+
+
+=== Create Kubernetes and Helm definition files from example files
+
+Each example file is commented or self explanatory
+
+1. Create or copy from `./deploy/example_cluster/example.sh` a wrapper Shell script and resources definition files from `resources/example-*`
+1. Rename, edit and customize each of these files
+1. enable *diagnosticMode.enable: true* in `resources/*-helm_values.yaml`, since the new installation will have no data yet and fail
+    ** this will prevent running PHP-FPM
+    ** this will disable Kubernetes probes that could replace pods
+1. disable *cronJobs.enable: false* in `resources/*-helm_values.yaml`
+    ** cronJobs resource will be created, but suspended to be prevented from running each interval
+1. run your wrapper shell script for Kubernetes and Helm to instanciate a new SugarCRM stack
+    ** `chmod +x ./deploy/CLUSTER_NAME/INSTALLATION_NAME.sh`
+    ** `./deploy/CLUSTER_NAME/INSTALLATION_NAME.sh`
+
+
+=== Import data, without PHP-FPM running
+
+From the Proxmox SugarCRM installation:
+
+* backup files
+    ** `sugarcli ... -P migration -d /home/sugarcrm/backup` _(i do not remember the parameters to backup files)_
+* export MySQL data
+    ** `sugarcli b:d:d -P migration -d /home/sugarcrm/backup`
+
+Then transfer files to the relevant Kubernetes pods:
+
+_best is to rsync directly from Proxmox server using `oovzXX.inetprocess.fr` name and SSH port 22222 (to avoid VPN bandwidth) to the Kubernetes volume if data is very big_
+
+_if using a temporary transfer server, it is preferable to create archives instead of rsync, to preserve file permissions and attributes which could be altered or removed depending of the intermediary transfer machines_
+
+_there is a special case where the provisionned volume would not be big enough to contain both the archive and the SugarCRM files. In that case one would transfer untarring on the fly of create a temporary emptyDir volume in the pod. Ask me if needed_
+
+* files to the SugarCRM pod, to PHP-FPM container
+    ** `kubectl cp -n TARGET_NAMESPACE -c sugarcrm migration_SOMETHING@SOMEDATE.tar.gz SUGARCRM_POD_NAME:/app/`
+* MySQL data to the MySQL pod
+    ** `kubectl cp -n TARGET_NAMESPACE migration_SOMETHING@SOMEDATE.sql.gz POD_NAME-mysql-0:/bitnami/mysql/`
+
+Then enter the Kubernetes pods and fix files or import MySQL data
+
+* files on the SugarCRM pod, on PHP-FPM container
+    ** uncompress files and create `/app/www`
+    ** If running as `root`, then `chown -R 1001:1001 /app`
+* MySQL fix privileges
+    1. log as `root` to MySQL `mysql -h MYSQL_SERVICE_NAME -u root -p'MYSQL_ROOT_PASSWORD' MYSQL_DB`
+    1. `grant select on mysql.proc to 'SUGARCRM_MYSQL_USER';`
+    1. `grant process on *.* TO SUGARCRM_MYSQL_USER;`
+* MySQL data on the MySQL pod
+    ** `zcat /bitnami/mysql/migration_SOMETHING@SOMEDATE.sql.gz | pv | mysql -h MYSQL_SERVICE_NAME -u SUGARCRM_MYSQL_USER -p'SUGARCRM_MYSQL_USER' MYSQL_DB`
+
+
+=== Enable PHP-FPM and Cron
+
+1. disable *diagnosticMode.enable: false* in `resources/*-helm_values.yaml`
+1. enable *cronJobs.enable: true* in `resources/*-helm_values.yaml`
+1. make sure the blocks `.containerSecurityContext:` or `podSecurityContext:` are commented
+1. run your wrapper shell script again for Kubernetes and Helm to apply difference changes
+    ** `./deploy/CLUSTER_NAME/INSTALLATION_NAME.sh`
+
+
+:sectnums!:
