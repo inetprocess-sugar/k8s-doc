@@ -1,0 +1,81 @@
+= How to restrict user or service account to only "exec" into pods and get logs
+
+NOTE: to understand difference and gotchas between a user and a service account, see there: [[howto_add_service_account#CONTEXTE]]
+
+NOTE: to create a service account, see there: [[howto_add_service_account#HOW_TO_CREATE_SERVICE_ACCOUNT]]
+
+WARNING: RBAC will prevent users or service accounts from performing actions on the cluster, but will not restrict from accessing services and resources once in a pod. To restrict network accesses, use network policies.
+
+
+What can be done with the following RBAC ? :
+
+* list pods in the specified namespace
+* copy files from and to pods in the specified namespace
+* get logs from pods and containers in the specified namespace
+* execute command or shell into pods and containers in the specified namespace
+
+
+== How to restrict user or service account to only "exec" into pods and get logs within a specific namespace
+
+Once the user or service account is created, then use RBAC to create a role and roleBinding.
+
+The example below uses service account "ecedi" in namespace "owwwuia02"
+
+.First confirm API versions for RBAC available in your Kubernetes cluster
+[source,bash]
+----
+kubectl api-versions | grep  rbac
+
+    # rbac.authorization.k8s.io/v1
+    # rbac.authorization.k8s.io/v1beta1
+----
+
+Then proceed with creation of resources:
+
+[source,bash]
+----
+# Create restricted role
+cat <<EOF | kubectl apply -f -
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: owwwuia02
+  name: pod-exec-logs
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+EOF
+
+# Bind the role to the service account or user
+cat <<EOF | kubectl apply -f -
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ecedi-pod-exec-logs
+  namespace: owwwuia02
+subjects:
+- kind: ServiceAccount
+  name: ecedi
+  namespace: owwwuia02
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-exec-logs
+EOF
+----
+
+.Confirmation
+[source,bash]
+----
+kubectl get rolebindings --namespace owwwuia02
+----
+
+
+Sources:
+
+* https://stackoverflow.com/a/47503157/92471[how to control access for pods/exec only in kubernetes rbac without pods create binded?]
+* https://computingforgeeks.com/restrict-kubernetes-service-account-users-to-a-namespace-with-rbac/[Create Kubernetes Service / User Account restricted to one Namespace]
