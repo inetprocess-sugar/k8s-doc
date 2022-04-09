@@ -1,0 +1,124 @@
+= How to connect to pods, get logs, copy files, ...
+
+== CLIENT TOOLING
+
+* `kubectl` is the command-line client tool
+    ** to access and manipulate Kubernetes resources
+    ** connect to pods and containers, run commands or shell on containers
+    ** get logs of pods and containers
+    ** copy files to and from pods and containers
+    ** (...)
+* `kubectx` is an helper tool to list change context. Typically switch cluster and user to connect to
+    ** binary can be downloaded from https://github.com/ahmetb/kubectx/releases[kubectx+kubens releases]
+* `kubens` is an helper tool to list and change current namespace to which `kubectl` commands will apply
+    ** binary can be downloaded from https://github.com/ahmetb/kubectx/releases[kubectx+kubens releases]
+
+.install kubectl
+[source,bash]
+----
+curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+
+chmod +x ./kubectl
+
+sudo mv ./kubectl /usr/local/bin/kubectl
+
+kubectl version --client
+----
+
+
+
+== ABOUT ECEDI
+
+* Production Drupal "owwwuia02" and related Events site "owwwuia02-events" are located on Kubernetes cluster "prod1"
+* UAT Drupal "ouatwwwuia02" and related Events sites "ouatwwwuia02-events" and "ouatwwwuia02-events-ecedi" are located on Kubernetes cluster "prod2"
+
+As far as Ecedi is concerned, only the following namespaces are allowed:
+
+* namespace `ouatwwwuia02` on cluster `prod2`
+* namespace `owwwuia02` on cluster `prod1`
+
+There is no SSHD server installed, applications are running in lightweight containers, and can be accessed with `kubectl` to "exec" a Bash shell
+
+Data are usually deployed in `/app` in each relevant container
+
+Pods will come and go, and thus their name will change. Data will remain since they are mounted persistentvolumes
+
+Cron jobs run as ephemeral pods that will remain as "Completed" for status or getting logs
+
+
+
+== HOW TO `kubectl` EXAMPLES AND SNIPPETS
+
+Here is a list of example commands:
+
+.change context
+[source,bash]
+----
+kubectx ecedi-owwwuia02@prod1
+
+kubectx ecedi-ouatwwwuia02@prod2
+----
+
+.change namespace
+[source,bash]
+----
+kubens owwwuia02
+
+kubens ouatwwwuia02
+----
+
+.list pods
+[source,bash]
+----
+# -n means --namespace to select the relevant namespace if needed
+kubectl get pods -n ouatwwwuia02
+----
+
+.get logs from container "drupal" in pod "ouatwwwuia02-drupal-8895cc8b-5cmgw"
+[source,bash]
+----
+# kubectl logs --help
+
+# add -f or --follow to tail logs
+# -c means --container to select the relevant container within the pod
+# -n means --namespace to select the relevant namespace if needed
+kubectl logs ouatwwwuia02-drupal-8895cc8b-5cmgw -c drupal -n ouatwwwuia02
+----
+
+.tail logs from container "apache" in pod "ouatwwwuia02-drupal-8895cc8b-5cmgw"
+[source,bash]
+----
+# kubectl logs --help
+
+# add -f or --follow to tail logs
+# -c means --container to select the relevant container within the pod
+# -n means --namespace to select the relevant namespace if needed
+kubectl logs ouatwwwuia02-drupal-8895cc8b-5cmgw -c apache -n ouatwwwuia02 -f
+----
+
+.get logs from Cronjob "drush" in pod "ouatwwwuia02-drupal-drush-27478860-jfjzb"
+[source,bash]
+----
+kubectl logs ouatwwwuia02-drupal-drush-27478860-jfjzb -n ouatwwwuia02
+----
+
+.connect to container "drupal" in pod "ouatwwwuia02-drupal-8895cc8b-5cmgw"
+[source,bash]
+----
+# kubectl exec --help
+
+# -c means --container to select the relevant container within the pod
+# -n means --namespace to select the relevant namespace if needed
+kubectl exec -ti  ouatwwwuia02-drupal-8895cc8b-5cmgw -c drupal -- bash
+----
+
+
+.copy to/from container "drupal" in pod "ouatwwwuia02-drupal-8895cc8b-5cmgw"
+[source,bash]
+----
+# copy file to container
+kubectl cp some_file -n ouatwwwuia02 ouatwwwuia02-drupal-8895cc8b-5cmgw:/app/some_file -c drupal
+
+# copy directory from container
+kubectl cp -n ouatwwwuia02 ouatwwwuia02-drupal-8895cc8b-5cmgw:/app/some_directory ./some_directory -c drupal
+----
