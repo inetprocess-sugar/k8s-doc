@@ -1,7 +1,7 @@
 
-= How to migrate sugarcrm installation to Kubernetes
+= How to migrate Sugarcrm installation to Kubernetes
 
-== How to migrate sugarcrm installation to Kubernetes
+== How to migrate Sugarcrm installation to Kubernetes
 
 === What composes a Kubernetes SugarCRM installation ?
 
