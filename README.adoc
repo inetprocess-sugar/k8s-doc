@@ -1,0 +1,51 @@
+= Home
+
+== General
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/webui_urls.adoc[webUI URLs]
+
+
+
+== Client/user howtos
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_manage_multiple_cluster_contextes.adoc[How to manage multiple Kubernetes clusters / change contexts]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_access_pods_list_exec_logs.adoc[How to connect to pods, get logs, copy files, …​]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_bash_auto_completion.adoc[How to set up Bash `kubectl` auto-completion]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_install_helm.adoc[How to install Helm]
+
+
+
+== Application and migration
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_migrate_sugarcrm_kubernetes.adoc[How to migrate Sugarcrm installation to Kubernetes]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_delete_sugarcrm_installation.adoc[How to delete Sugarcrm installation]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_disable_sugarcrm_cronjob.adoc[How to disable Sugarcrm cron job]
+
+
+
+== Cluster administration
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_init_dns_new_k8s_cluster.adoc[How to initialize DNS for new Scaleway Kubernetes cluster]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_add_new_server_node_kosmos.adoc[How to add new physical server nodes to Kosmos cluster]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_drain_cordon_replace_node.adoc[How to drain / cordon / replace Kubernetes nodes]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_change%20pod_limit.adoc[How to change pod limit on each node]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/main/howto/howto_add_service_account.adoc[How to add Kubernetes users or service accounts]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/home_page/howto/howto_rbac_restrict_only_pod_exec.adoc[How to restrict user or service account to only "exec" into pods and get logs)]
+
+
+
+== Temporary draft procedures
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/home_page/temp_draft_procedures/convert_mariadb_mysql.adoc[Draft doc to get files or convert mysql database from dead container to mysqldump]
+
+https://github.com/inetprocess-sugar/k8s-doc/blob/home_page/temp_draft_procedures/migrate_solr_proxmox_k8s_tomcat.adoc[How to migrate obsolete solr 4.6.1 from v1pmx32 to bitnami tomcat container]
